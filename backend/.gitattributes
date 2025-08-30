@@ -1,0 +1,16 @@
+# Auto detect text files and perform LF normalization
+* text=auto eol=lf
+
+# Treat common binary files as binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.zip binary
+*.gz binary
+*.br binary
+*.dll binary
+*.exe binary
+*.so binary
+node_modules/** -text
