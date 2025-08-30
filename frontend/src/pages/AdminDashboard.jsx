@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { getAllOrders, updateOrderStatus } from '../services/api';
 import OrderItem from '../components/OrderItem';
 import { useAuth } from '../context/AuthContext';
@@ -12,14 +12,14 @@ export default function AdminDashboard() {
   const [newStatus, setNewStatus] = useState('');
   const [statusUpdateLoading, setStatusUpdateLoading] = useState(false);
   const navigate = useNavigate();
-  const { isAdmin, isAuthenticated } = useAuth();
+  const { isAdmin, isAuthenticated, isLoading } = useAuth();
 
   useEffect(() => {
     // Redirect if not admin
     if (!isLoading && (!isAuthenticated || !isAdmin())) {
       navigate('/login');
     }
-  }, [isAuthenticated, isAdmin, navigate]);
+  }, [isLoading, isAuthenticated, isAdmin, navigate]);
 
   useEffect(() => {
     const fetchOrders = async () => {
