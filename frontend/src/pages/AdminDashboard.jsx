@@ -1,0 +1,295 @@
+import { useState, useEffect } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { getAllOrders, updateOrderStatus } from '../services/api';
+import OrderItem from '../components/OrderItem';
+import { useAuth } from '../context/AuthContext';
+
+export default function AdminDashboard() {
+  const [orders, setOrders] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [selectedOrder, setSelectedOrder] = useState(null);
+  const [newStatus, setNewStatus] = useState('');
+  const [statusUpdateLoading, setStatusUpdateLoading] = useState(false);
+  const navigate = useNavigate();
+  const { isAdmin, isAuthenticated } = useAuth();
+
+  useEffect(() => {
+    // Redirect if not admin
+    if (!isLoading && (!isAuthenticated || !isAdmin())) {
+      navigate('/login');
+    }
+  }, [isAuthenticated, isAdmin, navigate]);
+
+  useEffect(() => {
+    const fetchOrders = async () => {
+      try {
+        const data = await getAllOrders();
+        setOrders(data);
+        setLoading(false);
+      } catch (error) {
+        console.error('Error fetching orders:', error);
+        setError('Failed to load orders. Please try again later.');
+        setLoading(false);
+      }
+    };
+
+    fetchOrders();
+  }, []);
+
+  const handleViewDetails = (orderId) => {
+    const order = orders.find((o) => o._id === orderId);
+    setSelectedOrder(order);
+    setNewStatus(order.status);
+  };
+
+  const handleCloseDetails = () => {
+    setSelectedOrder(null);
+    setNewStatus('');
+  };
+
+  const handleUpdateStatus = async () => {
+    if (!selectedOrder || newStatus === selectedOrder.status) return;
+    
+    setStatusUpdateLoading(true);
+    try {
+      const updatedOrder = await updateOrderStatus(selectedOrder._id, newStatus);
+      
+      // Update orders in state
+      setOrders(
+        orders.map((order) =>
+          order._id === updatedOrder._id ? updatedOrder : order
+        )
+      );
+      
+      setSelectedOrder(updatedOrder);
+      setStatusUpdateLoading(false);
+    } catch (error) {
+      console.error('Error updating order status:', error);
+      setError('Failed to update order status');
+      setStatusUpdateLoading(false);
+    }
+  };
+
+  const formatDate = (dateString) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  };
+
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center h-64">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
+      <h1 className="text-3xl font-bold text-gray-900 mb-8">Admin Dashboard</h1>
+      
+      {error && (
+        <div className="bg-red-100 border-l-4 border-red-400 p-4 mb-6">
+          <div className="flex">
+            <div className="ml-3">
+              <p className="text-sm text-red-700">{error}</p>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      <div className="flex flex-col">
+        <h2 className="text-xl font-semibold text-gray-800 mb-4">Orders</h2>
+        
+        {orders.length === 0 ? (
+          <div className="bg-white shadow overflow-hidden sm:rounded-lg p-6 text-center">
+            <p className="text-gray-500">No orders found</p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Order ID
+                  </th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Customer
+                  </th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Date
+                  </th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Amount
+                  </th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Status
+                  </th>
+                  <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Actions
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {orders.map((order) => (
+                  <OrderItem 
+                    key={order._id} 
+                    order={order} 
+                    onViewDetails={handleViewDetails} 
+                  />
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* Order Detail Modal */}
+      {selectedOrder && (
+        <div className="fixed inset-0 bg-gray-500/60 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-xl shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto border border-gray-100">
+            <div className="px-6 py-4 border-b border-gray-200">
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-medium text-gray-900">
+                  Order Details
+                </h3>
+                <button
+                  onClick={handleCloseDetails}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  <span className="sr-only">Close</span>
+                  <svg className="h-6 w-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+            
+            <div className="px-6 py-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                <div>
+                  <h4 className="text-sm font-medium text-gray-500">Order Information</h4>
+                  <p className="mt-1 text-sm text-gray-900">
+                    <span className="font-medium">Order ID:</span> {selectedOrder._id}
+                  </p>
+                  <p className="mt-1 text-sm text-gray-900">
+                    <span className="font-medium">Date:</span> {formatDate(selectedOrder.createdAt)}
+                  </p>
+                  <p className="mt-1 text-sm text-gray-900">
+                    <span className="font-medium">Total Amount:</span> ${selectedOrder.totalAmount.toFixed(2)}
+                  </p>
+                  <div className="mt-1 flex items-center">
+                    <span className="font-medium text-sm text-gray-900 mr-2">Status:</span>
+                    <span className="px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800">
+                      {selectedOrder.status}
+                    </span>
+                  </div>
+                </div>
+                
+                <div>
+                  <h4 className="text-sm font-medium text-gray-500">Customer Information</h4>
+                  <p className="mt-1 text-sm text-gray-900">
+                    <span className="font-medium">Name:</span> {selectedOrder.customer.name}
+                  </p>
+                  <p className="mt-1 text-sm text-gray-900">
+                    <span className="font-medium">Email:</span> {selectedOrder.customer.email}
+                  </p>
+                  <p className="mt-1 text-sm text-gray-900">
+                    <span className="font-medium">Phone:</span> {selectedOrder.customer.phone}
+                  </p>
+                  <p className="mt-1 text-sm text-gray-900">
+                    <span className="font-medium">Address:</span> {selectedOrder.customer.address}
+                  </p>
+                </div>
+              </div>
+              
+              <h4 className="text-sm font-medium text-gray-500 mb-2">Order Items</h4>
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Item
+                      </th>
+                      <th scope="col" className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Quantity
+                      </th>
+                      <th scope="col" className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Price
+                      </th>
+                      <th scope="col" className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Subtotal
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {selectedOrder.items.map((item) => (
+                      <tr key={item._id}>
+                        <td className="px-4 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                          {item.furniture?.name || 'Unknown Item'}
+                        </td>
+                        <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500 text-center">
+                          {item.quantity}
+                        </td>
+                        <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500 text-right">
+                          ${item.price?.toFixed(2) || '0.00'}
+                        </td>
+                        <td className="px-4 py-4 whitespace-nowrap text-sm font-medium text-gray-900 text-right">
+                          ${(item.price * item.quantity).toFixed(2)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot>
+                    <tr>
+                      <td colSpan="3" className="px-4 py-4 whitespace-nowrap text-right text-sm font-medium text-gray-900">
+                        Total:
+                      </td>
+                      <td className="px-4 py-4 whitespace-nowrap text-right text-sm font-bold text-gray-900">
+                        ${selectedOrder.totalAmount.toFixed(2)}
+                      </td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+              
+              <div className="mt-6 border-t border-gray-200 pt-4">
+                <h4 className="text-sm font-medium text-gray-500 mb-2">Update Order Status</h4>
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <select
+                    value={newStatus}
+                    onChange={(e) => setNewStatus(e.target.value)}
+                    className="rounded-lg border border-gray-300 px-3 py-2 shadow-sm focus:border-[color:var(--color-brand)] focus:ring-[color:var(--color-brand)] sm:text-sm"
+                  >
+                    <option value="Pending">Pending</option>
+                    <option value="Processing">Processing</option>
+                    <option value="Shipped">Shipped</option>
+                    <option value="Delivered">Delivered</option>
+                    <option value="Cancelled">Cancelled</option>
+                  </select>
+                  <button
+                    onClick={handleUpdateStatus}
+                    disabled={statusUpdateLoading || newStatus === selectedOrder.status}
+                    className={`inline-flex justify-center py-2.5 px-4 border border-transparent shadow-sm text-sm font-semibold rounded-lg text-[color:var(--color-brand-foreground)] ${
+                      statusUpdateLoading || newStatus === selectedOrder.status
+                        ? 'bg-blue-300'
+                        : 'bg-[color:var(--color-brand)] hover:brightness-95'
+                    }`}
+                  >
+                    {statusUpdateLoading ? 'Updating...' : 'Update Status'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
