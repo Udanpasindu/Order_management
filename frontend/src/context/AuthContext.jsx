@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useEffect } from 'react';
+import { getProfile } from '../services/api';
 
 const AuthContext = createContext();
 
@@ -23,16 +24,21 @@ export const AuthProvider = ({ children }) => {
       }
       
       try {
-        // For now, just check if we have a saved user
-        const savedUser = localStorage.getItem('user');
-        if (savedUser) {
-          setUser(JSON.parse(savedUser));
-        } else {
-          setUser(null);
-        }
+        // Validate token and refresh user from backend
+        const profile = await getProfile();
+        const normalizedUser = {
+          id: profile._id || profile.id,
+          name: profile.name,
+          email: profile.email,
+          role: profile.role,
+        };
+        setUser(normalizedUser);
+        localStorage.setItem('user', JSON.stringify(normalizedUser));
       } catch (error) {
         console.error('Auth error:', error);
         setUser(null);
+        localStorage.removeItem('user');
+        localStorage.removeItem('token');
       } finally {
         setIsLoading(false);
       }

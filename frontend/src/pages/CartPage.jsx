@@ -1,12 +1,15 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useCart } from '../context/CartContext';
 import { createOrder } from '../services/api';
+import { useAuth } from '../context/AuthContext';
 
 export default function CartPage() {
-  const { cartItems, removeFromCart, updateQuantity, clearCart, getTotalPrice } = useCart();
+  const { cartItems, removeFromCart, updateQuantity, clearCart } = useCart();
+  const { user } = useAuth();
   const navigate = useNavigate();
   const [isCheckingOut, setIsCheckingOut] = useState(false);
+  const [selectedIds, setSelectedIds] = useState(() => new Set(cartItems.map(i => i._id)));
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -16,6 +19,59 @@ export default function CartPage() {
   const [formErrors, setFormErrors] = useState({});
   const [orderSuccess, setOrderSuccess] = useState(false);
   const [orderError, setOrderError] = useState('');
+
+  // Keep selection in sync when cart changes
+  const allIds = useMemo(() => cartItems.map(i => i._id), [cartItems]);
+  const allSelected = useMemo(() => allIds.length > 0 && allIds.every(id => selectedIds.has(id)), [allIds, selectedIds]);
+  const selectedItems = useMemo(() => cartItems.filter(i => selectedIds.has(i._id)), [cartItems, selectedIds]);
+  const selectedTotal = useMemo(() => selectedItems.reduce((sum, i) => sum + i.price * i.quantity, 0), [selectedItems]);
+
+  // When cartItems change (add/remove), prune selection to valid ids
+  if (selectedIds.size && allIds.length && [...selectedIds].some(id => !allIds.includes(id))) {
+    setSelectedIds(new Set(allIds.filter(id => selectedIds.has(id))));
+  }
+
+  const toggleSelect = (id) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    setSelectedIds(allSelected ? new Set() : new Set(allIds));
+  };
+
+  // Prefill form when entering checkout from saved shipping info or authenticated user
+  useEffect(() => {
+    if (!isCheckingOut) return;
+    let next = { ...formData };
+
+    // 1) Saved shipping info wins if available
+    try {
+      const saved = JSON.parse(localStorage.getItem('shippingInfo') || 'null');
+      if (saved) {
+        next = {
+          name: saved.name || next.name,
+          email: saved.email || next.email,
+          phone: saved.phone || next.phone,
+          address: saved.address || next.address,
+        };
+      }
+    } catch { /* ignore */ }
+
+    // 2) Fallbacks from authenticated user profile
+    if (user) {
+      next.name = next.name || user.name || '';
+      next.email = next.email || user.email || '';
+      // user.phone may not exist on profile; only fill if present
+      if (!next.phone && user.phone) next.phone = user.phone;
+    }
+
+    setFormData(next);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isCheckingOut, user]);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -56,6 +112,11 @@ export default function CartPage() {
       return;
     }
     
+    if (selectedItems.length === 0) {
+      setOrderError('Please select at least one item to checkout.');
+      return;
+    }
+
     try {
       const orderData = {
         customer: {
@@ -64,15 +125,41 @@ export default function CartPage() {
           phone: formData.phone,
           address: formData.address
         },
-        items: cartItems.map((item) => ({
+        // send only selected items; backend supports `selectedItems`
+        selectedItems: selectedItems.map((item) => ({
           furniture: item._id,
           quantity: item.quantity,
           price: item.price
         }))
       };
       
-      await createOrder(orderData);
-      clearCart();
+      const created = await createOrder(orderData);
+      try {
+        const existing = JSON.parse(localStorage.getItem('myOrders') || '[]');
+        if (created?._id && !existing.includes(created._id)) {
+          existing.unshift(created._id);
+          localStorage.setItem('myOrders', JSON.stringify(existing.slice(0, 50)));
+        }
+        // Persist shipping info for next checkout
+        localStorage.setItem(
+          'shippingInfo',
+          JSON.stringify({
+            name: formData.name,
+            email: formData.email,
+            phone: formData.phone,
+            address: formData.address,
+          })
+        );
+      } catch {
+        // ignore persistence failures
+      }
+      // If user selected subset, remove only those from cart, otherwise clear all
+      if (selectedItems.length === cartItems.length) {
+        clearCart();
+      } else {
+        selectedItems.forEach(si => removeFromCart(si._id));
+        setSelectedIds(new Set());
+      }
       setOrderSuccess(true);
       setTimeout(() => {
         navigate('/');
@@ -154,7 +241,14 @@ export default function CartPage() {
                     />
                   </div>
                   <div className="flex-1 flex flex-col mt-4 sm:mt-0">
-                    <div className="flex justify-between">
+                    <div className="flex justify-between items-start gap-3">
+                      <input
+                        type="checkbox"
+                        className="mt-1 h-5 w-5 rounded border-gray-300 text-[color:var(--color-brand)] focus:ring-[color:var(--color-brand)]"
+                        checked={selectedIds.has(item._id)}
+                        onChange={() => toggleSelect(item._id)}
+                        aria-label={`Select ${item.name}`}
+                      />
                       <h3 className="text-lg font-medium text-gray-900">{item.name}</h3>
                       <p className="text-lg font-medium text-gray-900">
                         ${(item.price * item.quantity).toFixed(2)}
@@ -191,19 +285,30 @@ export default function CartPage() {
             </ul>
           </div>
 
-          <div className="mt-6 flex justify-between">
+          <div className="mt-6 flex justify-between items-center">
             <Link
               to="/catalog"
               className="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
             >
               ← Continue Shopping
             </Link>
+            <div className="flex items-center gap-3">
+              <label className="flex items-center gap-2 text-sm text-gray-700">
+                <input
+                  type="checkbox"
+                  className="h-4 w-4 rounded border-gray-300 text-[color:var(--color-brand)] focus:ring-[color:var(--color-brand)]"
+                  checked={allSelected}
+                  onChange={toggleSelectAll}
+                />
+                Select all
+              </label>
             <button
               onClick={clearCart}
               className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-red-700 bg-red-100 hover:bg-red-200"
             >
               Clear Cart
             </button>
+            </div>
           </div>
         </div>
         
@@ -213,7 +318,7 @@ export default function CartPage() {
             <h2 className="text-lg font-medium text-gray-900 mb-4">Order Summary</h2>
             <div className="flow-root">
               <ul className="mb-6 divide-y divide-gray-200">
-                {cartItems.map((item) => (
+                {selectedItems.map((item) => (
                   <li key={item._id} className="flex justify-between py-2">
                     <div>
                       <span className="text-gray-700">{item.name}</span>
@@ -227,7 +332,7 @@ export default function CartPage() {
                 <div className="flex justify-between items-center">
                   <dt className="text-lg font-medium text-gray-900">Total</dt>
                   <dd className="text-lg font-bold text-blue-600">
-                    ${getTotalPrice().toFixed(2)}
+                    ${selectedTotal.toFixed(2)}
                   </dd>
                 </div>
               </div>
@@ -238,7 +343,7 @@ export default function CartPage() {
                 onClick={() => setIsCheckingOut(true)}
                 className="mt-6 w-full rounded-lg shadow-sm py-3 px-4 text-base font-medium text-[color:var(--color-brand-foreground)] bg-[color:var(--color-brand)] hover:brightness-95 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[color:var(--color-brand)]"
               >
-                Checkout
+                Checkout Selected
               </button>
             ) : (
               <form onSubmit={handleCheckout} className="mt-6">

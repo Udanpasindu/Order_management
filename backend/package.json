@@ -7,6 +7,7 @@
     "start": "node index.js",
     "dev": "nodemon index.js",
     "seed": "node userSeed.js",
+    "seed:furniture": "node scripts/seedFurniture.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],

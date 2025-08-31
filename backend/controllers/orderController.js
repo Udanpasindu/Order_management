@@ -1,21 +1,42 @@
 const Order = require('../models/Order');
 const Furniture = require('../models/Furniture');
 
-// Create a new order
+// Create a new order (supports partial/selected checkout)
 exports.createOrder = async (req, res) => {
   try {
-    const { customer, items } = req.body;
+    const { customer } = req.body;
+    // Accept either `items` or `selectedItems` in payload
+    let rawItems = Array.isArray(req.body.items)
+      ? req.body.items
+      : Array.isArray(req.body.selectedItems)
+        ? req.body.selectedItems
+        : [];
+
+    if (!Array.isArray(rawItems) || rawItems.length === 0) {
+      return res.status(400).json({ message: 'No items provided for checkout' });
+    }
     
     // Calculate total amount and verify items exist
     let totalAmount = 0;
     const processedItems = [];
     
-    for (const item of items) {
-      const furniture = await Furniture.findById(item.furniture);
+    for (const item of rawItems) {
+      const furnitureId = item.furniture || item._id || item.id; // allow flexible client shapes
+      const quantity = Number(item.quantity) || 0;
+
+      if (!furnitureId) {
+        return res.status(400).json({ message: 'Each item must include a furniture id' });
+      }
+
+      if (!Number.isFinite(quantity) || quantity < 1) {
+        return res.status(400).json({ message: 'Each item must include a valid quantity >= 1' });
+      }
+
+      const furniture = await Furniture.findById(furnitureId);
       
       if (!furniture) {
         return res.status(404).json({ 
-          message: `Furniture item with ID ${item.furniture} not found` 
+          message: `Furniture item with ID ${furnitureId} not found` 
         });
       }
       
@@ -25,12 +46,12 @@ exports.createOrder = async (req, res) => {
         });
       }
       
-      const itemTotal = furniture.price * item.quantity;
+      const itemTotal = furniture.price * quantity;
       totalAmount += itemTotal;
       
       processedItems.push({
-        furniture: item.furniture,
-        quantity: item.quantity,
+        furniture: furnitureId,
+        quantity,
         price: furniture.price
       });
     }
@@ -97,5 +118,40 @@ exports.updateOrderStatus = async (req, res) => {
     res.json(updatedOrder);
   } catch (error) {
     res.status(400).json({ message: 'Invalid order data', error: error.message });
+  }
+};
+
+// Cancel an order (public, verifies by customer email)
+exports.cancelOrder = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { email } = req.body || {};
+
+    if (!email) {
+      return res.status(400).json({ message: 'Email is required to cancel an order' });
+    }
+
+    const order = await Order.findById(id);
+    if (!order) {
+      return res.status(404).json({ message: 'Order not found' });
+    }
+
+    // Verify email matches the customer email on the order
+    if ((order.customer?.email || '').toLowerCase() !== String(email).toLowerCase()) {
+      return res.status(403).json({ message: 'Email does not match this order' });
+    }
+
+    // Only allow cancel if not already finalized
+    if (['Shipped', 'Delivered', 'Cancelled'].includes(order.status)) {
+      return res.status(400).json({ message: `Order cannot be cancelled when status is ${order.status}` });
+    }
+
+    order.status = 'Cancelled';
+    const saved = await order.save();
+
+    const populated = await saved.populate('items.furniture');
+    res.json(populated);
+  } catch (error) {
+    res.status(400).json({ message: 'Failed to cancel order', error: error.message });
   }
 };

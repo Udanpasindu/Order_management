@@ -7,7 +7,9 @@ import CatalogPage from './pages/CatalogPage';
 import FurnitureDetailPage from './pages/FurnitureDetailPage';
 import CartPage from './pages/CartPage';
 import LoginPage from './pages/LoginPage';
+import RegisterPage from './pages/RegisterPage';
 import AdminDashboard from './pages/AdminDashboard';
+import UserOrdersPage from './pages/UserOrdersPage';
 import { useAuth } from './context/AuthContext';
 
 // Protected route component
@@ -37,6 +39,8 @@ function AppRoutes() {
       <Route path="/furniture/:id" element={<FurnitureDetailPage />} />
       <Route path="/cart" element={<CartPage />} />
       <Route path="/login" element={<LoginPage />} />
+      <Route path="/register" element={<RegisterPage />} />
+      <Route path="/orders" element={<UserOrdersPage />} />
       <Route 
         path="/admin" 
         element={

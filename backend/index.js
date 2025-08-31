@@ -12,7 +12,8 @@ const PORT = process.env.PORT || 5000;
 
 connectDB();
 
-app.use(cors());
+const FRONTEND_ORIGIN = process.env.FRONTEND_ORIGIN || '*';
+app.use(cors({ origin: FRONTEND_ORIGIN, credentials: true }));
 app.use(morgan('dev'));
 app.use(express.json());
 

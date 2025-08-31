@@ -90,6 +90,16 @@ export default function Navbar() {
                       {isAuthenticated ? (
                         <>
                           <Menu.Item>
+                            {({ active }) => (
+                              <Link
+                                to="/orders"
+                                className={classNames(active ? 'bg-gray-100' : '', 'block px-4 py-2 text-sm text-gray-700')}
+                              >
+                                My Orders
+                              </Link>
+                            )}
+                          </Menu.Item>
+                          <Menu.Item>
               <div className="block px-4 py-3 text-sm text-gray-700">
                               Signed in as <span className="font-bold">{user?.name}</span>
                             </div>
@@ -118,6 +128,16 @@ export default function Navbar() {
                 className={classNames(active ? 'bg-gray-100' : '', 'block px-4 py-2 text-sm text-gray-700 rounded-b-xl')}
                               >
                                 Sign in
+                              </Link>
+                            )}
+                          </Menu.Item>
+                          <Menu.Item>
+                            {({ active }) => (
+                              <Link
+                                to="/register"
+                                className={classNames(active ? 'bg-gray-100' : '', 'block px-4 py-2 text-sm text-gray-700')}
+                              >
+                                Sign up
                               </Link>
                             )}
                           </Menu.Item>
