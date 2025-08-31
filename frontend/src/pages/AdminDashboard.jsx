@@ -53,6 +53,11 @@ export default function AdminDashboard() {
     
     setStatusUpdateLoading(true);
     try {
+      // Debug: Check token before making request
+      const token = localStorage.getItem('token');
+      console.log('Current token:', token ? 'Token exists' : 'No token found');
+      console.log('Current user role:', isAdmin() ? 'admin' : 'not admin');
+      
       const updatedOrder = await updateOrderStatus(selectedOrder._id, newStatus);
       
       // Update orders in state
@@ -66,6 +71,8 @@ export default function AdminDashboard() {
       setStatusUpdateLoading(false);
     } catch (error) {
       console.error('Error updating order status:', error);
+      console.error('Response status:', error.response?.status);
+      console.error('Response data:', error.response?.data);
       setError('Failed to update order status');
       setStatusUpdateLoading(false);
     }

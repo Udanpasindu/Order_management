@@ -26,6 +26,10 @@ export default function LoginPage() {
       const userData = await login({ email, password });
       authLogin(userData);
       
+      // Debug: Log login information
+      console.log('Login successful, user role:', userData.user.role);
+      console.log('Token stored:', !!userData.token);
+      
       // Redirect based on user role
       if (userData.user.role === 'admin') {
         navigate('/admin');
@@ -123,7 +127,7 @@ export default function LoginPage() {
                   <strong>Admin Login:</strong>
                 </p>
                 <p className="text-sm text-gray-600 mt-1">
-                  Email: admin@example.com
+                  Email: admin@gmail.com
                 </p>
                 <p className="text-sm text-gray-600">
                   Password: admin123

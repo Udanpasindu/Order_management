@@ -155,3 +155,25 @@ exports.cancelOrder = async (req, res) => {
     res.status(400).json({ message: 'Failed to cancel order', error: error.message });
   }
 };
+
+// Get orders by customer email
+exports.getOrdersByEmail = async (req, res) => {
+  try {
+    const { email } = req.params;
+    
+    if (!email) {
+      return res.status(400).json({ message: 'Email is required' });
+    }
+    
+    // Find all orders with matching customer email (case insensitive)
+    const orders = await Order.find({
+      'customer.email': { $regex: new RegExp('^' + email + '$', 'i') }
+    })
+    .populate('items.furniture')
+    .sort({ createdAt: -1 });
+    
+    res.json(orders);
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};

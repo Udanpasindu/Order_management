@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getOrderById, cancelOrder } from '../services/api';
+import { getOrdersByEmail, cancelOrder } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 
 export default function UserOrdersPage() {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isLoading, user } = useAuth();
   const navigate = useNavigate();
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -21,6 +21,32 @@ export default function UserOrdersPage() {
 
   useEffect(() => {
     const loadOrders = async () => {
+      if (isLoading || !user || !user.email) return;
+      
+      try {
+        setLoading(true);
+        // Get orders by user email from the backend
+        const userOrders = await getOrdersByEmail(user.email);
+        
+        // Sort by createdAt desc
+        userOrders.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+        setOrders(userOrders);
+        setLoading(false);
+        
+        // Also update localStorage for backward compatibility
+        const orderIds = userOrders.map(order => order._id);
+        localStorage.setItem('myOrders', JSON.stringify(orderIds));
+      } catch (err) {
+        console.error('Failed to load orders', err);
+        setError('Failed to load your orders.');
+        setLoading(false);
+        
+        // Fallback to localStorage if API call fails
+        fallbackToLocalStorage();
+      }
+    };
+    
+    const fallbackToLocalStorage = async () => {
       try {
         const stored = localStorage.getItem('myOrders');
         const ids = stored ? JSON.parse(stored) : [];
@@ -31,44 +57,57 @@ export default function UserOrdersPage() {
           return;
         }
 
+        // This is the old approach as fallback
         const results = [];
         for (const id of ids) {
           try {
-            const order = await getOrderById(id);
-            results.push(order);
+            // We would use getOrderById here but it requires auth which might have failed
+            // For simplicity in this fallback, we'll just use existing orders
+            const order = orders.find(o => o._id === id);
+            if (order) results.push(order);
           } catch {
             // Skip failed fetches silently
           }
         }
 
-        // Sort by createdAt desc if available
         results.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
         setOrders(results);
-        setLoading(false);
       } catch (err) {
-        console.error('Failed to load orders', err);
-        setError('Failed to load your orders.');
+        console.error('Fallback also failed', err);
+      } finally {
         setLoading(false);
       }
     };
 
     loadOrders();
-  }, []);
+  }, [isLoading, user]);
 
   const canCancel = (order) => {
     return order && (order.status === 'Pending' || order.status === 'Processing');
   };
+  
+  // Initialize cancelEmail with user's email when available
+  useEffect(() => {
+    if (user && user.email) {
+      setCancelEmail(user.email);
+    }
+  }, [user]);
 
   const handleCancelOrder = async (order) => {
     if (!order?._id) return;
-    if (!cancelEmail || !/\S+@\S+\.\S+/.test(cancelEmail)) {
+    
+    // Use user email from auth context if available, otherwise use manual input
+    const emailToUse = user?.email || cancelEmail;
+    
+    if (!emailToUse || !/\S+@\S+\.\S+/.test(emailToUse)) {
       setError('Please enter your email to confirm cancellation.');
       return;
     }
+    
     setError('');
     setCanceling(true);
     try {
-      const updated = await cancelOrder(order._id, cancelEmail);
+      const updated = await cancelOrder(order._id, emailToUse);
       // update local state for orders and selectedOrder
       setOrders((prev) => prev.map((o) => (o._id === updated._id ? updated : o)));
       setSelectedOrder(updated);
@@ -149,7 +188,16 @@ export default function UserOrdersPage() {
                   <td className="py-4 px-6">{formatDate(order.createdAt)}</td>
                   <td className="py-4 px-6">${order.totalAmount.toFixed(2)}</td>
                   <td className="py-4 px-6">
-                    <span className="px-2 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-800">{order.status}</span>
+                    <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
+                      order.status === 'Pending' ? 'bg-yellow-100 text-yellow-800' :
+                      order.status === 'Processing' ? 'bg-blue-100 text-blue-800' :
+                      order.status === 'Shipped' ? 'bg-indigo-100 text-indigo-800' :
+                      order.status === 'Delivered' ? 'bg-green-100 text-green-800' :
+                      order.status === 'Cancelled' ? 'bg-red-100 text-red-800' :
+                      'bg-gray-100 text-gray-800'
+                    }`}>
+                      {order.status}
+                    </span>
                   </td>
                   <td className="py-4 px-6 text-right space-x-4">
                     <button
@@ -196,7 +244,16 @@ export default function UserOrdersPage() {
                   <p className="mt-1 text-sm text-gray-900"><span className="font-medium">Total Amount:</span> ${selectedOrder.totalAmount.toFixed(2)}</p>
                   <div className="mt-1 flex items-center">
                     <span className="font-medium text-sm text-gray-900 mr-2">Status:</span>
-                    <span className="px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800">{selectedOrder.status}</span>
+                    <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
+                      selectedOrder.status === 'Pending' ? 'bg-yellow-100 text-yellow-800' :
+                      selectedOrder.status === 'Processing' ? 'bg-blue-100 text-blue-800' :
+                      selectedOrder.status === 'Shipped' ? 'bg-indigo-100 text-indigo-800' :
+                      selectedOrder.status === 'Delivered' ? 'bg-green-100 text-green-800' :
+                      selectedOrder.status === 'Cancelled' ? 'bg-red-100 text-red-800' :
+                      'bg-gray-100 text-gray-800'
+                    }`}>
+                      {selectedOrder.status}
+                    </span>
                   </div>
                 </div>
 

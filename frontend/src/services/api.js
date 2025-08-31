@@ -20,6 +20,12 @@ api.interceptors.request.use(
     const token = localStorage.getItem('token');
     if (token) {
       config.headers['Authorization'] = `Bearer ${token}`;
+      // Debug: Log when adding token to requests (only for admin routes)
+      if (config.url.includes('/orders') && (config.method === 'patch' || config.method === 'get' && !config.url.includes('/orders/'))) {
+        console.log('Adding token to admin request:', config.url);
+      }
+    } else {
+      console.warn('No token found for request:', config.url);
     }
     return config;
   },
@@ -67,6 +73,8 @@ export const logout = () => {
 export const getAllOrders = async () => (await api.get('/orders')).data;
 
 export const getOrderById = async (id) => (await api.get(`/orders/${id}`)).data;
+
+export const getOrdersByEmail = async (email) => (await api.get(`/orders/user/${email}`)).data;
 
 export const updateOrderStatus = async (id, status) => (await api.patch(`/orders/${id}/status`, { status })).data;
 
