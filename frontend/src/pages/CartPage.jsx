@@ -54,7 +54,7 @@ export default function CartPage() {
       if (saved) {
         next = {
           name: saved.name || next.name,
-          email: saved.email || next.email,
+          email: user ? user.email : (saved.email || next.email), // Always use user's email if logged in
           phone: saved.phone || next.phone,
           address: saved.address || next.address,
         };
@@ -64,7 +64,7 @@ export default function CartPage() {
     // 2) Fallbacks from authenticated user profile
     if (user) {
       next.name = next.name || user.name || '';
-      next.email = next.email || user.email || '';
+      next.email = user.email || ''; // Always override with user's email
       // user.phone may not exist on profile; only fill if present
       if (!next.phone && user.phone) next.phone = user.phone;
     }
@@ -91,11 +91,16 @@ export default function CartPage() {
   const validateForm = () => {
     const errors = {};
     if (!formData.name.trim()) errors.name = 'Name is required';
-    if (!formData.email.trim()) {
-      errors.email = 'Email is required';
-    } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
-      errors.email = 'Email is invalid';
+    
+    // Skip email validation if user is logged in (as we use their authenticated email)
+    if (!user) {
+      if (!formData.email.trim()) {
+        errors.email = 'Email is required';
+      } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
+        errors.email = 'Email is invalid';
+      }
     }
+    
     if (!formData.phone.trim()) errors.phone = 'Phone is required';
     if (!formData.address.trim()) errors.address = 'Address is required';
     
@@ -378,10 +383,15 @@ export default function CartPage() {
                       name="email"
                       value={formData.email}
                       onChange={handleInputChange}
+                      readOnly={!!user} // Make read-only if user is logged in
+                      disabled={!!user} // Disable if user is logged in
                       className={`mt-1 block w-full rounded-lg border px-3 py-2 shadow-sm ${
-                          formErrors.email ? 'border-red-300' : 'border-gray-300'
+                          formErrors.email ? 'border-red-300' : user ? 'border-gray-200 bg-gray-50 text-gray-600' : 'border-gray-300'
                         } focus:border-[color:var(--color-brand)] focus:ring-[color:var(--color-brand)]`}
                     />
+                    {user && (
+                      <p className="mt-1 text-xs text-gray-500">Using your account email address</p>
+                    )}
                     {formErrors.email && (
                       <p className="mt-1 text-sm text-red-600">{formErrors.email}</p>
                     )}
