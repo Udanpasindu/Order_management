@@ -83,7 +83,17 @@ export default function UserOrdersPage() {
   }, [isLoading, user]);
 
   const canCancel = (order) => {
-    return order && (order.status === 'Pending' || order.status === 'Processing');
+    if (!order || !['Pending', 'Processing'].includes(order.status)) {
+      return false;
+    }
+    
+    // Check if order is less than 3 days old
+    const orderDate = new Date(order.createdAt);
+    const currentDate = new Date();
+    const differenceInTime = currentDate.getTime() - orderDate.getTime();
+    const differenceInDays = differenceInTime / (1000 * 3600 * 24);
+    
+    return differenceInDays <= 3;
   };
   
   // Initialize cancelEmail with user's email when available
@@ -120,7 +130,8 @@ export default function UserOrdersPage() {
         }
       } catch {/* ignore */}
     } catch (e) {
-      setError(e?.response?.data?.message || 'Failed to cancel the order.');
+      const errorMsg = e?.response?.data?.message || 'Failed to cancel the order.';
+      setError(errorMsg);
     } finally {
       setCanceling(false);
     }
@@ -359,7 +370,8 @@ export default function UserOrdersPage() {
               {canCancel(selectedOrder) && (
                 <div className="mt-6 border-t border-gray-200 pt-4">
                   <h4 className="text-sm font-medium text-gray-900 mb-2">Cancel this order</h4>
-                  <p className="text-sm text-gray-600 mb-3">Enter your email to confirm cancellation.</p>
+                  <p className="text-sm text-gray-600 mb-1">Enter your email to confirm cancellation.</p>
+                  <p className="text-xs text-gray-500 mb-3">Note: Orders can only be cancelled within three days of placement.</p>
                   <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center">
                     <input
                       type="email"

@@ -169,6 +169,16 @@ exports.cancelOrder = async (req, res) => {
       return res.status(400).json({ message: `Order cannot be cancelled when status is ${order.status}` });
     }
 
+    // Check if order is older than 3 days
+    const orderDate = new Date(order.createdAt);
+    const currentDate = new Date();
+    const differenceInTime = currentDate.getTime() - orderDate.getTime();
+    const differenceInDays = differenceInTime / (1000 * 3600 * 24);
+    
+    if (differenceInDays > 3) {
+      return res.status(400).json({ message: 'Orders cannot be cancelled after three days of placement' });
+    }
+
     // If order has a vehicle, make the vehicle available again
     if (order.vehicle) {
       await Vehicle.findByIdAndUpdate(
