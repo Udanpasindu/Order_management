@@ -78,6 +78,12 @@ export const getOrdersByEmail = async (email) => (await api.get(`/orders/user/${
 
 export const updateOrderStatus = async (id, status) => (await api.patch(`/orders/${id}/status`, { status })).data;
 
+export const assignVehicleToOrder = async (id, vehicleId, deliveryNotes = '') => 
+  (await api.patch(`/orders/${id}/assign-vehicle`, { vehicleId, deliveryNotes })).data;
+
+export const unassignVehicleFromOrder = async (id) => 
+  (await api.delete(`/orders/${id}/unassign-vehicle`)).data;
+
 export const cancelOrder = async (id, email) => (await api.post(`/orders/${id}/cancel`, { email })).data;
 
 export const seedFurniture = async () => (await api.post('/furniture/seed')).data;

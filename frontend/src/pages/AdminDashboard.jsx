@@ -1,16 +1,27 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getAllOrders, updateOrderStatus } from '../services/api';
+import { 
+  getAllOrders, 
+  updateOrderStatus, 
+  getAllVehicles, 
+  assignVehicleToOrder,
+  unassignVehicleFromOrder 
+} from '../services/api';
 import OrderItem from '../components/OrderItem';
 import { useAuth } from '../context/AuthContext';
 
 export default function AdminDashboard() {
   const [orders, setOrders] = useState([]);
+  const [vehicles, setVehicles] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [newStatus, setNewStatus] = useState('');
+  const [selectedVehicle, setSelectedVehicle] = useState('');
   const [statusUpdateLoading, setStatusUpdateLoading] = useState(false);
+  const [vehicleAssignLoading, setVehicleAssignLoading] = useState(false);
+  const [deliveryNotes, setDeliveryNotes] = useState('');
+  const [vehicleUnassignLoading, setVehicleUnassignLoading] = useState(false);
   const navigate = useNavigate();
   const { isAdmin, isAuthenticated, isLoading } = useAuth();
 
@@ -22,25 +33,33 @@ export default function AdminDashboard() {
   }, [isLoading, isAuthenticated, isAdmin, navigate]);
 
   useEffect(() => {
-    const fetchOrders = async () => {
+    const fetchData = async () => {
       try {
-        const data = await getAllOrders();
-        setOrders(data);
+        const [ordersData, vehiclesData] = await Promise.all([
+          getAllOrders(),
+          getAllVehicles()
+        ]);
+        
+        setOrders(ordersData);
+        setVehicles(vehiclesData.filter(v => v.isAvailable)); // Only available vehicles
         setLoading(false);
       } catch (error) {
-        console.error('Error fetching orders:', error);
-        setError('Failed to load orders. Please try again later.');
+        console.error('Error fetching data:', error);
+        setError('Failed to load data. Please try again later.');
         setLoading(false);
       }
     };
 
-    fetchOrders();
+    fetchData();
   }, []);
 
   const handleViewDetails = (orderId) => {
     const order = orders.find((o) => o._id === orderId);
     setSelectedOrder(order);
     setNewStatus(order.status);
+    setSelectedVehicle('');
+    // Set delivery notes from order if available
+    setDeliveryNotes(order.deliveryNotes || '');
   };
 
   const handleCloseDetails = () => {
@@ -67,6 +86,12 @@ export default function AdminDashboard() {
         )
       );
       
+      // If order is cancelled and had a vehicle, refresh vehicle list
+      if (updatedOrder.status === 'Cancelled' && selectedOrder.vehicle) {
+        const vehiclesData = await getAllVehicles();
+        setVehicles(vehiclesData.filter(v => v.isAvailable));
+      }
+      
       setSelectedOrder(updatedOrder);
       setStatusUpdateLoading(false);
     } catch (error) {
@@ -75,6 +100,66 @@ export default function AdminDashboard() {
       console.error('Response data:', error.response?.data);
       setError('Failed to update order status');
       setStatusUpdateLoading(false);
+    }
+  };
+  
+  const handleAssignVehicle = async () => {
+    if (!selectedOrder || !selectedVehicle) return;
+    
+    setVehicleAssignLoading(true);
+    try {
+      const updatedOrder = await assignVehicleToOrder(
+        selectedOrder._id, 
+        selectedVehicle,
+        deliveryNotes
+      );
+      
+      // Update orders in state
+      setOrders(
+        orders.map((order) =>
+          order._id === updatedOrder._id ? updatedOrder : order
+        )
+      );
+      
+      // Update vehicle list - remove assigned vehicle
+      const vehiclesData = await getAllVehicles();
+      setVehicles(vehiclesData.filter(v => v.isAvailable));
+      
+      setSelectedOrder(updatedOrder);
+      setSelectedVehicle('');
+      setVehicleAssignLoading(false);
+    } catch (error) {
+      console.error('Error assigning vehicle:', error);
+      setError('Failed to assign vehicle to order');
+      setVehicleAssignLoading(false);
+    }
+  };
+  
+  const handleUnassignVehicle = async () => {
+    if (!selectedOrder || !selectedOrder.vehicle) return;
+    
+    setVehicleUnassignLoading(true);
+    try {
+      const updatedOrder = await unassignVehicleFromOrder(selectedOrder._id);
+      
+      // Update orders in state
+      setOrders(
+        orders.map((order) =>
+          order._id === updatedOrder._id ? updatedOrder : order
+        )
+      );
+      
+      // Update vehicle list - add the now available vehicle
+      const vehiclesData = await getAllVehicles();
+      setVehicles(vehiclesData.filter(v => v.isAvailable));
+      
+      setSelectedOrder(updatedOrder);
+      setDeliveryNotes('');
+      setVehicleUnassignLoading(false);
+    } catch (error) {
+      console.error('Error unassigning vehicle:', error);
+      setError('Failed to unassign vehicle from order');
+      setVehicleUnassignLoading(false);
     }
   };
 
@@ -307,6 +392,134 @@ export default function AdminDashboard() {
                     {statusUpdateLoading ? 'Updating...' : 'Update Status'}
                   </button>
                 </div>
+              </div>
+
+              {/* Vehicle Assignment Section */}
+              <div className="mt-6 border-t border-gray-200 pt-4">
+                <h4 className="text-sm font-medium text-gray-500 mb-2">
+                  {selectedOrder.vehicle ? 'Assigned Vehicle' : 'Assign Vehicle'}
+                </h4>
+
+                {selectedOrder.vehicle ? (
+                  <div>
+                    <div className="bg-gray-50 p-3 rounded mb-3">
+                      <h5 className="font-medium mb-2">{selectedOrder.vehicle.vehicleName}</h5>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                        <div>
+                          <p className="text-sm text-gray-700 mb-1">
+                            <span className="font-medium">Type:</span> {selectedOrder.vehicle.vehicleType}
+                          </p>
+                          <p className="text-sm text-gray-700 mb-1">
+                            <span className="font-medium">Number:</span> {selectedOrder.vehicle.vehicleNumber}
+                          </p>
+                          <p className="text-sm text-gray-700 mb-1">
+                            <span className="font-medium">Capacity:</span> {selectedOrder.vehicle.capacity}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-sm text-gray-700 mb-1">
+                            <span className="font-medium">Driver:</span> {selectedOrder.vehicle.driverName}
+                          </p>
+                          <p className="text-sm text-gray-700 mb-1">
+                            <span className="font-medium">Contact:</span> {selectedOrder.vehicle.driverContact}
+                          </p>
+                          <p className="text-sm text-gray-700 mb-1">
+                            <span className="font-medium">License:</span> {selectedOrder.vehicle.driverLicense}
+                          </p>
+                        </div>
+                      </div>
+                      
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {selectedOrder.vehicle.vehicleImages?.length > 0 && (
+                          <div>
+                            <p className="text-xs text-gray-500 mb-1">Vehicle Image</p>
+                            <img 
+                              src={selectedOrder.vehicle.vehicleImages[0]} 
+                              alt={selectedOrder.vehicle.vehicleName} 
+                              className="h-32 object-cover rounded"
+                            />
+                          </div>
+                        )}
+                        {selectedOrder.vehicle.driverImage && (
+                          <div>
+                            <p className="text-xs text-gray-500 mb-1">Driver Image</p>
+                            <img 
+                              src={selectedOrder.vehicle.driverImage} 
+                              alt={selectedOrder.vehicle.driverName} 
+                              className="h-32 object-cover rounded"
+                            />
+                          </div>
+                        )}
+                      </div>
+
+                      {selectedOrder.deliveryNotes && (
+                        <div className="mt-3 p-2 bg-blue-50 rounded">
+                          <p className="text-xs text-gray-500 mb-1">Delivery Notes</p>
+                          <p className="text-sm">{selectedOrder.deliveryNotes}</p>
+                        </div>
+                      )}
+                    </div>
+                    
+                    <button
+                      onClick={handleUnassignVehicle}
+                      disabled={vehicleUnassignLoading}
+                      className={`w-full inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-semibold rounded-lg text-white ${
+                        vehicleUnassignLoading 
+                          ? 'bg-red-300' 
+                          : 'bg-red-600 hover:bg-red-700'
+                      }`}
+                    >
+                      {vehicleUnassignLoading ? 'Unassigning...' : 'Unassign Vehicle'}
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex flex-col gap-3">
+                    {vehicles.length === 0 ? (
+                      <p className="text-sm text-gray-600">No vehicles available for assignment</p>
+                    ) : (
+                      <>
+                        <select
+                          value={selectedVehicle}
+                          onChange={(e) => setSelectedVehicle(e.target.value)}
+                          className="rounded-lg border border-gray-300 px-3 py-2 shadow-sm focus:border-[color:var(--color-brand)] focus:ring-[color:var(--color-brand)] sm:text-sm"
+                        >
+                          <option value="">-- Select a vehicle --</option>
+                          {vehicles.map((vehicle) => (
+                            <option key={vehicle._id} value={vehicle._id}>
+                              {vehicle.vehicleName} - {vehicle.vehicleNumber} - {vehicle.driverName}
+                            </option>
+                          ))}
+                        </select>
+
+                        <div>
+                          <label htmlFor="deliveryNotes" className="block text-xs font-medium text-gray-700 mb-1">
+                            Delivery Notes (optional)
+                          </label>
+                          <textarea
+                            id="deliveryNotes"
+                            value={deliveryNotes}
+                            onChange={(e) => setDeliveryNotes(e.target.value)}
+                            placeholder="Special instructions for delivery..."
+                            className="rounded-lg border border-gray-300 w-full px-3 py-2 shadow-sm focus:border-[color:var(--color-brand)] focus:ring-[color:var(--color-brand)] sm:text-sm"
+                            rows={3}
+                          />
+                        </div>
+                        
+                        <button
+                          onClick={handleAssignVehicle}
+                          disabled={vehicleAssignLoading || !selectedVehicle}
+                          className={`inline-flex justify-center py-2.5 px-4 border border-transparent shadow-sm text-sm font-semibold rounded-lg text-white ${
+                            vehicleAssignLoading || !selectedVehicle
+                              ? 'bg-green-300'
+                              : 'bg-green-600 hover:bg-green-700'
+                          }`}
+                        >
+                          {vehicleAssignLoading ? 'Assigning...' : 'Assign Vehicle'}
+                        </button>
+                      </>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
           </div>

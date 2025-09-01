@@ -255,6 +255,66 @@ export default function UserOrdersPage() {
                       {selectedOrder.status}
                     </span>
                   </div>
+
+                  {/* Show vehicle information if assigned */}
+                  {selectedOrder.vehicle && (
+                    <div className="mt-3">
+                      <h5 className="text-sm font-medium text-gray-500 mb-1">Delivery Vehicle</h5>
+                      <div className="bg-gray-50 p-3 mt-1 rounded">
+                        <h6 className="font-medium">{selectedOrder.vehicle.vehicleName}</h6>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-1 mt-2">
+                          <div>
+                            <p className="text-xs text-gray-600">
+                              <span className="font-medium">Vehicle Number:</span> {selectedOrder.vehicle.vehicleNumber}
+                            </p>
+                            <p className="text-xs text-gray-600">
+                              <span className="font-medium">Vehicle Type:</span> {selectedOrder.vehicle.vehicleType}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-gray-600">
+                              <span className="font-medium">Driver:</span> {selectedOrder.vehicle.driverName}
+                            </p>
+                            <p className="text-xs text-gray-600">
+                              <span className="font-medium">Driver Contact:</span> {selectedOrder.vehicle.driverContact}
+                            </p>
+                          </div>
+                        </div>
+                        
+                        {/* Display vehicle and driver images */}
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          {selectedOrder.vehicle.vehicleImages?.[0] && (
+                            <div>
+                              <p className="text-xs text-gray-500 mb-1">Vehicle</p>
+                              <img 
+                                src={selectedOrder.vehicle.vehicleImages[0]} 
+                                alt={selectedOrder.vehicle.vehicleName} 
+                                className="h-24 w-24 object-cover rounded" 
+                              />
+                            </div>
+                          )}
+                          {selectedOrder.vehicle.driverImage && (
+                            <div>
+                              <p className="text-xs text-gray-500 mb-1">Driver</p>
+                              <img 
+                                src={selectedOrder.vehicle.driverImage} 
+                                alt={selectedOrder.vehicle.driverName} 
+                                className="h-24 w-24 object-cover rounded-full" 
+                              />
+                            </div>
+                          )}
+                        </div>
+                        
+                        {/* Show delivery notes if available */}
+                        {selectedOrder.deliveryNotes && (
+                          <div className="mt-3 p-2 bg-blue-50 rounded text-sm">
+                            <p className="text-xs font-medium text-gray-500 mb-1">Delivery Notes</p>
+                            <p>{selectedOrder.deliveryNotes}</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 <div>

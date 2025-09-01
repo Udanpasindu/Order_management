@@ -39,6 +39,15 @@ const orderSchema = new mongoose.Schema({
       min: 0
     }
   }],
+  vehicle: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Vehicle',
+    default: null
+  },
+  deliveryNotes: {
+    type: String,
+    default: ''
+  },
   totalAmount: {
     type: Number,
     required: true,

@@ -1,5 +1,6 @@
 const Order = require('../models/Order');
 const Furniture = require('../models/Furniture');
+const Vehicle = require('../models/Vehicle');
 
 // Create a new order (supports partial/selected checkout)
 exports.createOrder = async (req, res) => {
@@ -74,7 +75,10 @@ exports.createOrder = async (req, res) => {
 // Get all orders (admin only)
 exports.getAllOrders = async (req, res) => {
   try {
-    const orders = await Order.find().populate('items.furniture').sort({ createdAt: -1 });
+    const orders = await Order.find()
+      .populate('items.furniture')
+      .populate('vehicle')
+      .sort({ createdAt: -1 });
     res.json(orders);
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
@@ -84,7 +88,9 @@ exports.getAllOrders = async (req, res) => {
 // Get order by ID
 exports.getOrderById = async (req, res) => {
   try {
-    const order = await Order.findById(req.params.id).populate('items.furniture');
+    const order = await Order.findById(req.params.id)
+      .populate('items.furniture')
+      .populate('vehicle');
     
     if (!order) {
       return res.status(404).json({ message: 'Order not found' });
@@ -105,11 +111,28 @@ exports.updateOrderStatus = async (req, res) => {
       return res.status(400).json({ message: 'Invalid status value' });
     }
     
+    // Get the order before update to check if it has a vehicle assigned
+    const order = await Order.findById(req.params.id);
+    
+    if (!order) {
+      return res.status(404).json({ message: 'Order not found' });
+    }
+    
+    // If order is being cancelled and has a vehicle, make the vehicle available again
+    if (status === 'Cancelled' && order.vehicle) {
+      await Vehicle.findByIdAndUpdate(
+        order.vehicle,
+        { isAvailable: true }
+      );
+    }
+    
     const updatedOrder = await Order.findByIdAndUpdate(
       req.params.id,
       { status },
       { new: true, runValidators: true }
-    ).populate('items.furniture');
+    )
+    .populate('items.furniture')
+    .populate('vehicle');
     
     if (!updatedOrder) {
       return res.status(404).json({ message: 'Order not found' });
@@ -146,10 +169,18 @@ exports.cancelOrder = async (req, res) => {
       return res.status(400).json({ message: `Order cannot be cancelled when status is ${order.status}` });
     }
 
+    // If order has a vehicle, make the vehicle available again
+    if (order.vehicle) {
+      await Vehicle.findByIdAndUpdate(
+        order.vehicle,
+        { isAvailable: true }
+      );
+    }
+
     order.status = 'Cancelled';
     const saved = await order.save();
 
-    const populated = await saved.populate('items.furniture');
+    const populated = await saved.populate(['items.furniture', 'vehicle']);
     res.json(populated);
   } catch (error) {
     res.status(400).json({ message: 'Failed to cancel order', error: error.message });
@@ -170,10 +201,102 @@ exports.getOrdersByEmail = async (req, res) => {
       'customer.email': { $regex: new RegExp('^' + email + '$', 'i') }
     })
     .populate('items.furniture')
+    .populate('vehicle')
     .sort({ createdAt: -1 });
     
     res.json(orders);
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
+// Assign vehicle to order (admin only)
+exports.assignVehicle = async (req, res) => {
+  try {
+    const { vehicleId, deliveryNotes } = req.body;
+    
+    if (!vehicleId) {
+      return res.status(400).json({ message: 'Vehicle ID is required' });
+    }
+    
+    // Check if vehicle exists and is available
+    const vehicle = await Vehicle.findById(vehicleId);
+    
+    if (!vehicle) {
+      return res.status(404).json({ message: 'Vehicle not found' });
+    }
+    
+    if (!vehicle.isAvailable) {
+      return res.status(400).json({ message: 'This vehicle is not available' });
+    }
+    
+    // Find the order and check if it already has a vehicle
+    const order = await Order.findById(req.params.id);
+    
+    if (!order) {
+      return res.status(404).json({ message: 'Order not found' });
+    }
+    
+    // If order already has a vehicle assigned, make that one available again
+    if (order.vehicle) {
+      await Vehicle.findByIdAndUpdate(
+        order.vehicle,
+        { isAvailable: true }
+      );
+    }
+    
+    const updatedOrder = await Order.findByIdAndUpdate(
+      req.params.id,
+      { 
+        vehicle: vehicleId,
+        deliveryNotes: deliveryNotes || ''
+      },
+      { new: true, runValidators: true }
+    )
+    .populate('items.furniture')
+    .populate('vehicle');
+    
+    // Mark vehicle as unavailable when assigned to an order
+    vehicle.isAvailable = false;
+    await vehicle.save();
+    
+    res.json(updatedOrder);
+  } catch (error) {
+    res.status(400).json({ message: 'Invalid data', error: error.message });
+  }
+};
+
+// Unassign vehicle from order (admin only)
+exports.unassignVehicle = async (req, res) => {
+  try {
+    const order = await Order.findById(req.params.id);
+    
+    if (!order) {
+      return res.status(404).json({ message: 'Order not found' });
+    }
+    
+    // If order has no vehicle assigned, return error
+    if (!order.vehicle) {
+      return res.status(400).json({ message: 'No vehicle assigned to this order' });
+    }
+    
+    // Make the vehicle available again
+    await Vehicle.findByIdAndUpdate(
+      order.vehicle,
+      { isAvailable: true }
+    );
+    
+    // Remove vehicle from order
+    order.vehicle = null;
+    order.deliveryNotes = '';
+    await order.save();
+    
+    const updatedOrder = await Order.findById(req.params.id)
+      .populate('items.furniture')
+      .populate('vehicle');
+    
+    res.json(updatedOrder);
+  } catch (error) {
+    res.status(400).json({ message: 'Failed to unassign vehicle', error: error.message });
   }
 };
