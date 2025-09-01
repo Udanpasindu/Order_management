@@ -83,3 +83,16 @@ export const cancelOrder = async (id, email) => (await api.post(`/orders/${id}/c
 export const seedFurniture = async () => (await api.post('/furniture/seed')).data;
 
 export const seedAdmin = async () => (await api.post('/users/seed-admin')).data;
+
+// Vehicle related API calls
+export const getAllVehicles = async () => (await api.get('/vehicles')).data;
+
+export const getVehicleById = async (id) => (await api.get(`/vehicles/${id}`)).data;
+
+export const createVehicle = async (vehicleData) => (await api.post('/vehicles', vehicleData)).data;
+
+export const updateVehicle = async (id, vehicleData) => (await api.put(`/vehicles/${id}`, vehicleData)).data;
+
+export const deleteVehicle = async (id) => (await api.delete(`/vehicles/${id}`)).data;
+
+export const toggleVehicleAvailability = async (id) => (await api.patch(`/vehicles/${id}/toggle-availability`)).data;

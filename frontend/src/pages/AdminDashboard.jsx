@@ -99,7 +99,22 @@ export default function AdminDashboard() {
 
   return (
     <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
-      <h1 className="text-3xl font-bold text-gray-900 mb-8">Admin Dashboard</h1>
+      <h1 className="text-3xl font-bold text-gray-900 mb-4">Admin Dashboard</h1>
+      
+      <div className="flex flex-wrap gap-4 mb-8">
+        <button 
+          onClick={() => navigate('/admin')}
+          className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md"
+        >
+          Manage Orders
+        </button>
+        <button 
+          onClick={() => navigate('/admin/vehicles')}
+          className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md"
+        >
+          Manage Vehicles
+        </button>
+      </div>
       
       {error && (
         <div className="bg-red-100 border-l-4 border-red-400 p-4 mb-6">

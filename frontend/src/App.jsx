@@ -10,6 +10,8 @@ import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import AdminDashboard from './pages/AdminDashboard';
 import UserOrdersPage from './pages/UserOrdersPage';
+import VehicleManagement from './pages/VehicleManagement';
+import AddEditVehicle from './pages/AddEditVehicle';
 import { useAuth } from './context/AuthContext';
 
 // Protected route component
@@ -44,9 +46,33 @@ function AppRoutes() {
       <Route 
         path="/admin" 
         element={
-
+          <ProtectedRoute requireAdmin={true}>
             <AdminDashboard />
-          
+          </ProtectedRoute>
+        } 
+      />
+      <Route 
+        path="/admin/vehicles" 
+        element={
+          <ProtectedRoute requireAdmin={true}>
+            <VehicleManagement />
+          </ProtectedRoute>
+        } 
+      />
+      <Route 
+        path="/admin/vehicles/add" 
+        element={
+          <ProtectedRoute requireAdmin={true}>
+            <AddEditVehicle />
+          </ProtectedRoute>
+        } 
+      />
+      <Route 
+        path="/admin/vehicles/edit/:id" 
+        element={
+          <ProtectedRoute requireAdmin={true}>
+            <AddEditVehicle />
+          </ProtectedRoute>
         } 
       />
     </Routes>
