@@ -102,3 +102,44 @@ export const updateVehicle = async (id, vehicleData) => (await api.put(`/vehicle
 export const deleteVehicle = async (id) => (await api.delete(`/vehicles/${id}`)).data;
 
 export const toggleVehicleAvailability = async (id) => (await api.patch(`/vehicles/${id}/toggle-availability`)).data;
+
+// Generate PDF report of orders (admin only)
+export const generateOrdersReport = async (query = '') => {
+  try {
+    // Use axios directly for blob response
+    const response = await api.get(`/orders/report${query ? `?query=${encodeURIComponent(query)}` : ''}`, {
+      responseType: 'blob',
+    });
+    
+    // Create a URL for the blob
+    const blob = new Blob([response.data], { type: 'application/pdf' });
+    const url = window.URL.createObjectURL(blob);
+    
+    // Create a link and trigger download
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `orders-report-${Date.now()}.pdf`);
+    document.body.appendChild(link);
+    link.click();
+    
+    // Clean up
+    link.parentNode.removeChild(link);
+    window.URL.revokeObjectURL(url);
+    
+    return true;
+  } catch (error) {
+    console.error('Error generating PDF report:', error);
+    throw error;
+  }
+};
+
+// Search orders by ID or customer email (admin only)
+export const searchOrders = async (query) => {
+  try {
+    return (await api.get(`/orders/search?query=${encodeURIComponent(query)}`)).data;
+  } catch (error) {
+    console.error('Search API error:', error);
+    // Return empty array on error to avoid breaking the UI
+    return [];
+  }
+};
