@@ -5,7 +5,9 @@ import {
   updateOrderStatus, 
   getAllVehicles, 
   assignVehicleToOrder,
-  unassignVehicleFromOrder 
+  unassignVehicleFromOrder,
+  searchOrders,
+  generateOrdersReport
 } from '../services/api';
 import OrderItem from '../components/OrderItem';
 import { useAuth } from '../context/AuthContext';
@@ -22,6 +24,9 @@ export default function AdminDashboard() {
   const [vehicleAssignLoading, setVehicleAssignLoading] = useState(false);
   const [deliveryNotes, setDeliveryNotes] = useState('');
   const [vehicleUnassignLoading, setVehicleUnassignLoading] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [isSearching, setIsSearching] = useState(false);
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   const navigate = useNavigate();
   const { isAdmin, isAuthenticated, isLoading } = useAuth();
 
@@ -163,6 +168,43 @@ export default function AdminDashboard() {
     }
   };
 
+  const handleSearch = async (e) => {
+    e.preventDefault();
+    setIsSearching(true);
+    setError(null);
+    
+    try {
+      const results = await searchOrders(searchQuery);
+      setOrders(results);
+    } catch (error) {
+      console.error('Error searching orders:', error);
+      setError('Failed to search orders. Please try again.');
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  const handleClearSearch = () => {
+    setSearchQuery('');
+    // Optionally, refetch all orders
+    // fetchData();
+  };
+
+  const handleGenerateReport = async () => {
+    setIsGeneratingPdf(true);
+    setError(null);
+    
+    try {
+      await generateOrdersReport(searchQuery); // Pass search query to filter the report if needed
+      // The API function handles download automatically
+    } catch (error) {
+      console.error('Error generating report:', error);
+      setError('Failed to generate orders report. Please try again.');
+    } finally {
+      setIsGeneratingPdf(false);
+    }
+  };
+
   const formatDate = (dateString) => {
     const date = new Date(dateString);
     return date.toLocaleDateString('en-US', {
@@ -199,6 +241,30 @@ export default function AdminDashboard() {
         >
           Manage Vehicles
         </button>
+        <button 
+          onClick={handleGenerateReport}
+          disabled={isGeneratingPdf}
+          className={`bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-md flex items-center ${
+            isGeneratingPdf ? 'opacity-70 cursor-not-allowed' : ''
+          }`}
+        >
+          {isGeneratingPdf ? (
+            <>
+              <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+              Generating...
+            </>
+          ) : (
+            <>
+              <svg className="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path>
+              </svg>
+              Generate PDF Report
+            </>
+          )}
+        </button>
       </div>
       
       {error && (
@@ -210,6 +276,44 @@ export default function AdminDashboard() {
           </div>
         </div>
       )}
+      
+      {/* Search form - add info about PDF generation */}
+      <div className="mb-6">
+        <form onSubmit={handleSearch} className="flex flex-wrap gap-2">
+          <div className="flex-grow">
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search by order ID or customer information..."
+              className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+            <p className="mt-1 text-xs text-gray-500">
+              Search also applies to PDF reports when generating
+            </p>
+          </div>
+          <div className="flex gap-2">
+            <button
+              type="submit"
+              disabled={isSearching}
+              className={`bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md ${
+                isSearching ? 'opacity-70 cursor-not-allowed' : ''
+              }`}
+            >
+              {isSearching ? 'Searching...' : 'Search'}
+            </button>
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={handleClearSearch}
+                className="bg-gray-200 hover:bg-gray-300 text-gray-800 px-4 py-2 rounded-md"
+              >
+                Clear
+              </button>
+            )}
+          </div>
+        </form>
+      </div>
       
       <div className="flex flex-col">
         <h2 className="text-xl font-semibold text-gray-800 mb-4">Orders</h2>
