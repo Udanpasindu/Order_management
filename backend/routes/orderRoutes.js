@@ -7,7 +7,9 @@ const {
   cancelOrder, 
   getOrdersByEmail, 
   assignVehicle,
-  unassignVehicle
+  unassignVehicle,
+  generateOrdersReport,
+  searchOrders
 } = require('../controllers/orderController');
 const { auth, adminAuth } = require('../middleware/auth');
 
@@ -15,6 +17,10 @@ const router = express.Router();
 
 // Public route
 router.post('/', createOrder);
+
+// Search and report routes - must be before /:id routes to avoid conflicts
+router.get('/search', auth, adminAuth, searchOrders);
+router.get('/report', adminAuth, generateOrdersReport);
 
 // User/Auth routes
 router.get('/user/:email', auth, getOrdersByEmail);
